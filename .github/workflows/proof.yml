@@ -1,0 +1,39 @@
+name: SecEx boundary proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SECEX_EGRESS_RULES: "github.a8c.com,github.com,api.github.com,raw.githubusercontent.com,objects.githubusercontent.com,release-assets.githubusercontent.com,nodejs.org,go.dev,dl.google.com,proxy.golang.org,sum.golang.org,storage.googleapis.com,registry.npmjs.org,openrouter.ai"
+
+jobs:
+  runtime:
+    runs-on: [self-hosted, secex, gha-runner-2cpu-2gb]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0, GHES mirror
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - uses: actions/setup-go@90ad2b35f69faf97585ad74d28fa006d2739b7af
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - name: Record runtime evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          node --version
+          go version
+          node -e 'require("node:fs").writeFileSync("runtime-proof.json", JSON.stringify({node:process.version,platform:process.platform,arch:process.arch}) + "\n")'
+      - uses: actions/upload-artifact@c6a366c94c3e0affe28c06c8df20a878f24da3cf # v3.2.2, GHES
+        with:
+          name: runtime-proof
+          path: runtime-proof.json
+          if-no-files-found: error
+          retention-days: 7

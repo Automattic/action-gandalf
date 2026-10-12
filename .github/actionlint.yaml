@@ -1,0 +1,4 @@
+self-hosted-runner:
+  labels:
+    - secex
+    - gha-runner-2cpu-2gb
