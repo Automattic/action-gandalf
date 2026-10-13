@@ -42,7 +42,7 @@ jobs:
           persist-credentials: false
       - uses: Automattic/action-gandalf@trunk
         with:
-          token: ${{ secrets.GANDALF_API_TOKEN }}
+          token: ${{ secrets.GANDALF_GITHUB_ACTION_TOKEN }}
           type: plugin
           base-sha: ${{ github.event.before }}
 ```
@@ -77,7 +77,7 @@ jobs:
           persist-credentials: false
       - uses: Automattic/action-gandalf@trunk
         with:
-          token: ${{ secrets.GANDALF_API_TOKEN }}
+          token: ${{ secrets.GANDALF_GITHUB_ACTION_TOKEN }}
           type: plugin
           base-sha: ${{ github.event.before }}
           product-path: plugins/my-plugin
@@ -117,7 +117,7 @@ jobs:
           persist-credentials: false
       - uses: Automattic/action-gandalf@trunk
         with:
-          token: ${{ secrets.GANDALF_API_TOKEN }}
+          token: ${{ secrets.GANDALF_GITHUB_ACTION_TOKEN }}
           type: plugin
 ```
 
@@ -141,7 +141,7 @@ jobs:
           persist-credentials: false
       - uses: Automattic/action-gandalf@trunk
         with:
-          token: ${{ secrets.GANDALF_API_TOKEN }}
+          token: ${{ secrets.GANDALF_GITHUB_ACTION_TOKEN }}
           type: plugin
           product-path: plugins/my-plugin
           additional-source-paths: |
@@ -156,7 +156,7 @@ with `runtime-zip`. Build it from the same checkout being reviewed:
 ```yaml
 - uses: Automattic/action-gandalf@trunk
   with:
-    token: ${{ secrets.GANDALF_API_TOKEN }}
+    token: ${{ secrets.GANDALF_GITHUB_ACTION_TOKEN }}
     type: plugin
     runtime-zip: dist/my-plugin.zip
 ```

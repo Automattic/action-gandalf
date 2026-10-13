@@ -2,7 +2,7 @@ name: Gandalf
 description: Submit changed WordPress plugin or theme source for an asynchronous Gandalf scan.
 inputs:
   token:
-    description: Dedicated organization GANDALF_API_TOKEN secret.
+    description: Dedicated organization GANDALF_GITHUB_ACTION_TOKEN secret.
     required: true
   type:
     description: WordPress product type, plugin or theme.
