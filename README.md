@@ -5,75 +5,145 @@ changed source files, submits them and finishes. Gandalf performs the scan and a
 runtime investigation, then sends results to Mission Control for presentation and
 notifications.
 
-## Single plugin or theme
+## Recommended: scan changes merged into trunk
+
+Run after changes land on `trunk` to avoid scanning every PR update. Each push is
+reviewed from the previous trunk SHA (`before`) to the new SHA (`after`). This
+includes squash merges and pushes containing several commits. It reports changes
+after they land; it does not block the merge.
+
+### Single plugin or theme
 
 For a plugin at the repository root, add this workflow to
-`.github/workflows/gandalf.yml`:
+`.github/workflows/gandalf.yml`. Replace `trunk` if your default branch has another
+name, or use `type: theme` for a theme.
 
 ```yaml
 name: Gandalf
-on: [pull_request]
+on:
+  push:
+    branches: [trunk]
 
 permissions:
   contents: read
 
 jobs:
   scan:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.created == false && github.event.deleted == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.event.after }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Automattic/action-gandalf@6a995b2815ed421bdef1604de536858a31fa09ef
+      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
         with:
           token: ${{ secrets.GANDALF_API_TOKEN }}
           type: plugin
+          base-sha: ${{ github.event.before }}
 ```
 
-For a theme, change `type: plugin` to `type: theme`. The action compares the
-checked-out commit with the PR's base commit. No build is needed for source review.
-The job condition skips fork PRs, which this action does not support.
+The checkout is pinned to that push's exact commit, even if another merge happens
+before the job starts. The job condition skips branch creation and deletion, which
+do not have two existing branch revisions to compare.
 
-## Monorepo
+### A product in a monorepo
 
-Set `product-path` to the plugin or theme directory. Invoke the action once per
-product; a matrix can scan several products independently:
+Set `product-path` to the plugin or theme directory. Optionally include shared
+source that the product depends on:
 
 ```yaml
 name: Gandalf
-on: [pull_request]
+on:
+  push:
+    branches: [trunk]
 
 permissions:
   contents: read
 
 jobs:
   scan:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.created == false && github.event.deleted == false
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        product:
-          - plugins/my-plugin
-          - plugins/another-plugin
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.event.after }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Automattic/action-gandalf@6a995b2815ed421bdef1604de536858a31fa09ef
+      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
         with:
           token: ${{ secrets.GANDALF_API_TOKEN }}
           type: plugin
-          product-path: ${{ matrix.product }}
+          base-sha: ${{ github.event.before }}
+          product-path: plugins/my-plugin
           additional-source-paths: |
             packages/shared
 ```
 
-`additional-source-paths` is optional: include shared source the product depends
-on, or omit it. Paths are literal repository-relative paths, not globs. A product
-with no changes in its configured paths is skipped.
+Paths are literal repository-relative paths, not globs. Omit
+`additional-source-paths` when it is not needed. Invoke once per product; use a job
+matrix if you want to scan several products. Products with no changes in their
+configured paths are skipped.
+
+## Alternative: scan every PR update
+
+Choose PR scans when you want feedback before merging, accepting the additional
+runs as the PR changes. The action compares the checkout with the PR base. The
+standard `pull_request` trigger runs when a PR opens, reopens or receives new commits.
+These examples skip fork PRs, which the action does not support.
+
+### Single plugin or theme
+
+```yaml
+name: Gandalf
+on: [pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
+        with:
+          token: ${{ secrets.GANDALF_API_TOKEN }}
+          type: plugin
+```
+
+### A product in a monorepo
+
+```yaml
+name: Gandalf
+on: [pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
+        with:
+          token: ${{ secrets.GANDALF_API_TOKEN }}
+          type: plugin
+          product-path: plugins/my-plugin
+          additional-source-paths: |
+            packages/shared
+```
 
 ## Optional runtime investigation
 
@@ -81,7 +151,7 @@ If your workflow already builds an installable plugin or theme ZIP, pass its pat
 with `runtime-zip`. Build it from the same checkout being reviewed:
 
 ```yaml
-- uses: Automattic/action-gandalf@6a995b2815ed421bdef1604de536858a31fa09ef
+- uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
   with:
     token: ${{ secrets.GANDALF_API_TOKEN }}
     type: plugin
