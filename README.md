@@ -35,7 +35,7 @@ jobs:
     if: github.event.created == false && github.event.deleted == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.after }}
           fetch-depth: 0
@@ -70,7 +70,7 @@ jobs:
     if: github.event.created == false && github.event.deleted == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.after }}
           fetch-depth: 0
@@ -111,7 +111,7 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -135,7 +135,7 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
