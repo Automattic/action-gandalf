@@ -109,7 +109,7 @@ export function parseGithubChangeManifest(value: unknown): GithubParseResult<Git
       const change = record(raw, ['status', 'before', 'after']);
       const status = change['status'];
       requireValue(
-        ['A', 'D', 'M', 'R', 'T'].includes(String(status)),
+        typeof status === 'string' && ['A', 'D', 'M', 'R', 'T'].includes(status),
         'unsupported Git change status',
       );
       requireValue((status !== 'A') === 'before' in change, 'invalid before side');
@@ -221,7 +221,7 @@ function validateFile(value: unknown): void {
   requireValue(isGithubSourcePath(f['path']), 'invalid source path');
   oid(f['oid']);
   requireValue(
-    ['100644', '100755', '120000', '160000'].includes(String(f['mode'])),
+    typeof f['mode'] === 'string' && ['100644', '100755', '120000', '160000'].includes(f['mode']),
     'invalid Git file mode',
   );
   if (f['mode'] === '100644' || f['mode'] === '100755') {

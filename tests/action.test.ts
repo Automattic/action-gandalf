@@ -364,3 +364,18 @@ global.fetch = async (url, init) => {
     await assert.rejects(readFile(capture), { code: 'ENOENT' });
   }
 });
+
+
+test('manifest rejects coercive file modes and change statuses', () => {
+  for (const mode of [100644, ['100644'], 120000, ['160000']]) {
+    assert.deepEqual(parseGithubChangeManifest({
+      ...golden,
+      changes: [{ status: 'A', after: { path: 'plugin/example.php', oid: 'a'.repeat(40), mode } }],
+    }), { ok: false, message: 'invalid Git file mode' });
+  }
+  assert.deepEqual(parseGithubChangeManifest({
+    ...golden,
+    changes: [{ status: ['M'], before: { path: 'plugin/a.php', oid: 'a'.repeat(40), mode: '120000' },
+      after: { path: 'plugin/b.php', oid: 'b'.repeat(40), mode: '120000' } }],
+  }), { ok: false, message: 'unsupported Git change status' });
+});
