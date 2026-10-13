@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
@@ -112,7 +112,7 @@ test('bundles exact committed changes including deletions, renames, modes and un
   const { root, context } = await repo();
   await put(root, 'plugin/edit.php', 'dirty worktree must never enter the source bundle');
   const bundle = await buildBundle(root, await scratch(), context);
-  assert(bundle);
+  assert(bundle.kind === 'changed');
   const actual = await entries(bundle.path);
   assert.equal(bundle.manifest.changes.length, 6);
   assert.deepEqual(
@@ -171,15 +171,33 @@ test('supports a theme and explicitly scoped shared source, and skips an unchang
     type: 'theme',
     additional_source_paths: ['unrelated'],
   });
-  assert(bundle);
+  assert(bundle.kind === 'changed');
   assert.equal(bundle.manifest.context.type, 'theme');
   assert.equal(bundle.manifest.changes.length, 7);
-  assert.equal(
+  assert.deepEqual(
     await buildBundle(root, await scratch(), { ...context, base_sha: context.checkout_sha }),
-    null,
+    { kind: 'unchanged' },
   );
   await ensureBase(root, context.base_sha);
 });
+test('fetches an absent base from the checkout origin', async () => {
+  const { root, context } = await repo();
+  const checkout = await scratch();
+  git(checkout, 'clone', '--quiet', '--no-local', '--depth=1', root, '.');
+  const missing = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${context.base_sha}^{commit}`], { cwd: checkout });
+  assert.equal(missing.status, 1);
+  await ensureBase(checkout, context.base_sha);
+  assert.equal(git(checkout, 'rev-parse', '--verify', context.base_sha), context.base_sha);
+});
+
+test('does not fetch when the checkout itself is invalid', async () => {
+  await assert.rejects(ensureBase(await scratch(), golden.context.base_sha), (error) => {
+    assert(error instanceof Error && 'cmd' in error);
+    assert.doesNotMatch(String(error.cmd), /fetch/);
+    return true;
+  });
+});
+
 test('represents a deletion-only comparison without inventing a checkout file', async () => {
   const root = await scratch();
   git(root, 'init', '-q');
@@ -192,7 +210,7 @@ test('represents a deletion-only comparison without inventing a checkout file', 
     base_sha,
     checkout_sha,
   });
-  assert(bundle);
+  assert(bundle.kind === 'changed');
   assert.deepEqual([...(await entries(bundle.path)).keys()].sort(), [
     'changes/before/plugin/only.php',
     'changes/manifest.json',
@@ -295,10 +313,7 @@ global.fetch = async (url, init) => {
   return Response.json({scan_id: new Headers(init.headers).get('Idempotency-Key'), accepted_at: 42}, {status:202});
 };`,
   );
-  execFileSync(process.execPath, ['--require', preload, join(isolated, 'index.cjs')], {
-    cwd: root,
-    encoding: 'utf8',
-    env: {
+  const runnerEnv = {
       ...process.env,
       INPUT_TOKEN: 'fixture-secret',
       INPUT_TYPE: 'plugin',
@@ -312,8 +327,10 @@ global.fetch = async (url, init) => {
       GITHUB_RUN_ID: '42',
       GITHUB_RUN_ATTEMPT: '1',
       GITHUB_OUTPUT: output,
-    },
-  });
+      RUNNER_TEMP: isolated,
+  };
+  const command = ['--require', preload, join(isolated, 'index.cjs')];
+  execFileSync(process.execPath, command, { cwd: root, encoding: 'utf8', env: runnerEnv });
   const submitted = JSON.parse(await readFile(capture, 'utf8')) as {
     url: string;
     metadata: Record<string, unknown>;
@@ -325,4 +342,25 @@ global.fetch = async (url, init) => {
   assert.equal(submitted.metadata['pull_request'], 42);
   assert(submitted.sourceBytes > 0);
   assert.match(await readFile(output, 'utf8'), /accepted/);
+  // A push has no PR identity: the workflow explicitly supplies its before SHA.
+  await writeFile(eventPath, JSON.stringify({ before: context.base_sha, after: context.checkout_sha }));
+  const pushEnv = { ...runnerEnv, GITHUB_EVENT_NAME: 'push', 'INPUT_BASE-SHA': context.base_sha };
+  execFileSync(process.execPath, command, { cwd: root, encoding: 'utf8', env: pushEnv });
+  const pushed = JSON.parse(await readFile(capture, 'utf8')) as { metadata: Record<string, unknown> };
+  assert.equal(pushed.metadata['base_sha'], context.base_sha);
+  assert.equal(pushed.metadata['checkout_sha'], context.checkout_sha);
+  assert.equal('pull_request' in pushed.metadata, false);
+  assert.equal('pr_head_sha' in pushed.metadata, false);
+  for (const [name, message] of [
+    ['INPUT_PRODUCT-PATH', 'Input required and not supplied: product-path'],
+    ['RUNNER_TEMP', 'Missing RUNNER_TEMP'],
+  ] as const) {
+    await rm(capture, { force: true });
+    const invalid = spawnSync(process.execPath, command, {
+      cwd: root, encoding: 'utf8', env: { ...pushEnv, [name]: '' },
+    });
+    assert.equal(invalid.status, 1);
+    assert((invalid.stdout + invalid.stderr).includes(message));
+    await assert.rejects(readFile(capture), { code: 'ENOENT' });
+  }
 });

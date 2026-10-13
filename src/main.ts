@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as core from '@actions/core';
 import { buildBundle, ensureBase, gitText } from './bundle';
@@ -17,12 +16,17 @@ async function main(): Promise<void> {
   const workspace = requiredEnv('GITHUB_WORKSPACE');
   const repository = requiredEnv('GITHUB_REPOSITORY');
   const event = record(JSON.parse(await readFile(requiredEnv('GITHUB_EVENT_PATH'), 'utf8')));
-  const pr = event['pull_request'] === undefined ? undefined : record(event['pull_request']);
-  const base = pr === undefined ? undefined : record(pr['base']);
-  const head = pr === undefined ? undefined : record(pr['head']);
-  if (head !== undefined && record(head['repo'])['full_name'] !== repository)
-    throw new Error('Fork pull requests are not supported in v1');
-  const baseSha = core.getInput('base-sha') || (base === undefined ? '' : text(base['sha']));
+  let baseSha = core.getInput('base-sha');
+  let pullRequest: { readonly pull_request: unknown; readonly pr_head_sha: string } | undefined;
+  if (event['pull_request'] !== undefined) {
+    const pr = record(event['pull_request']);
+    const head = record(pr['head']);
+    if (record(head['repo'])['full_name'] !== repository)
+      throw new Error('Fork pull requests are not supported in v1');
+    // The event's base is the documented default only when no explicit base was supplied.
+    if (baseSha === '') baseSha = text(record(pr['base'])['sha']);
+    pullRequest = { pull_request: pr['number'], pr_head_sha: text(head['sha']) };
+  }
   if (baseSha === '') throw new Error('base-sha is required outside a pull request');
   await ensureBase(workspace, baseSha);
   const checkoutSha = await gitText(workspace, ['rev-parse', 'HEAD']);
@@ -30,22 +34,21 @@ async function main(): Promise<void> {
     server_url: requiredEnv('GITHUB_SERVER_URL'),
     repository,
     repository_id: requiredEnv('GITHUB_REPOSITORY_ID'),
-    product_path: core.getInput('product-path') || '.',
+    // action.yml owns the default; an empty runner-provided value is invalid.
+    product_path: core.getInput('product-path', { required: true }),
     additional_source_paths: core.getMultilineInput('additional-source-paths'),
     type: core.getInput('type', { required: true }),
     base_sha: baseSha,
     checkout_sha: checkoutSha,
-    ...(pr === undefined || head === undefined
-      ? {}
-      : { pull_request: pr['number'], pr_head_sha: text(head['sha']) }),
+    ...(pullRequest === undefined ? {} : pullRequest),
     run_id: requiredEnv('GITHUB_RUN_ID'),
     run_attempt: Number(requiredEnv('GITHUB_RUN_ATTEMPT')),
   });
   if (!context.ok) throw new Error(context.message);
-  const scratch = await mkdtemp(join(process.env['RUNNER_TEMP'] ?? tmpdir(), 'gandalf-action-'));
+  const scratch = await mkdtemp(join(requiredEnv('RUNNER_TEMP'), 'gandalf-action-'));
   try {
     const bundle = await buildBundle(workspace, scratch, context.value);
-    if (bundle === null) {
+    if (bundle.kind === 'unchanged') {
       core.setOutput('status', 'skipped');
       core.setOutput('scan-id', '');
       core.setOutput('accepted-at', '');

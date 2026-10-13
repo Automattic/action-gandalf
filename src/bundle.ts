@@ -34,8 +34,10 @@ export async function gitText(workspace: string, args: readonly string[]): Promi
 export async function ensureBase(workspace: string, sha: string): Promise<void> {
   if (!SHA.test(sha)) throw new Error('base-sha must be a full commit SHA');
   try {
-    await gitText(workspace, ['cat-file', '-e', `${sha}^{commit}`]);
-  } catch {
+    await gitText(workspace, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`]);
+  } catch (error) {
+    // rev-parse --verify --quiet exits 1 only when the requested object is absent.
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 1) throw error;
     await gitText(workspace, ['fetch', '--no-tags', '--depth=1', 'origin', sha]);
   }
   await gitText(workspace, ['cat-file', '-e', `${sha}^{commit}`]);
@@ -45,11 +47,12 @@ export async function buildBundle(
   workspace: string,
   scratch: string,
   context: GithubScanContext,
-): Promise<{
+): Promise<{ readonly kind: 'unchanged' } | {
+  readonly kind: 'changed';
   readonly path: string;
   readonly bytes: number;
   readonly manifest: GithubChangeManifest;
-} | null> {
+}> {
   const scopes = [context.product_path, ...context.additional_source_paths];
   if (scopes.some((path) => !isGithubSourcePath(path, true)))
     throw new Error('Source paths must be literal repository-relative paths');
@@ -73,7 +76,7 @@ export async function buildBundle(
     { cwd: workspace, encoding: 'buffer', maxBuffer: GITHUB_MANIFEST_MAX_BYTES },
   );
   const decoded = new TextDecoder('utf-8', { fatal: true }).decode(raw.stdout);
-  if (decoded === '') return null;
+  if (decoded === '') return { kind: 'unchanged' };
   if (!decoded.endsWith('\0')) throw new Error('Truncated Git change output');
   const fields = decoded.slice(0, -1).split('\0');
   const changes: GithubChange[] = [];
@@ -81,7 +84,8 @@ export async function buildBundle(
   let expanded = 0;
   for (let index = 0; index < fields.length; ) {
     const header = fields[index++];
-    const match = /^:(\d{6}) (\d{6}) ([0-9a-f]+) ([0-9a-f]+) ([ADMRT])\d*$/u.exec(header ?? '');
+    if (header === undefined) throw new Error('Missing Git change header');
+    const match = /^:(\d{6}) (\d{6}) ([0-9a-f]+) ([0-9a-f]+) ([ADMRT])\d*$/u.exec(header);
     if (match === null) throw new Error('Unsupported Git change record');
     const [, oldMode, newMode, oldOid, newOid, status] = match;
     const oldPath = fields[index++];
@@ -167,7 +171,7 @@ export async function buildBundle(
   zip.end();
   const failure = await result;
   if (failure !== null) throw failure;
-  return { path, bytes: (await stat(path)).size, manifest };
+  return { kind: 'changed', path, bytes: (await stat(path)).size, manifest };
 
   async function file(path: string, mode: string, oid: string): Promise<GithubFile> {
     if (!isGithubSourcePath(path) || !SHA.test(oid))
