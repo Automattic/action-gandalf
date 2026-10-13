@@ -5,6 +5,9 @@ changed source files, submits them and finishes. Gandalf performs the scan and a
 runtime investigation, then sends results to Mission Control for presentation and
 notifications.
 
+The examples use `Automattic/action-gandalf@trunk` to pick up updates as they land.
+Use a reviewed commit SHA when you need a fixed action version.
+
 ## Recommended: scan changes merged into trunk
 
 Run after changes land on `trunk` to avoid scanning every PR update. Each push is
@@ -37,7 +40,7 @@ jobs:
           ref: ${{ github.event.after }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
+      - uses: Automattic/action-gandalf@trunk
         with:
           token: ${{ secrets.GANDALF_API_TOKEN }}
           type: plugin
@@ -72,7 +75,7 @@ jobs:
           ref: ${{ github.event.after }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
+      - uses: Automattic/action-gandalf@trunk
         with:
           token: ${{ secrets.GANDALF_API_TOKEN }}
           type: plugin
@@ -112,7 +115,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
+      - uses: Automattic/action-gandalf@trunk
         with:
           token: ${{ secrets.GANDALF_API_TOKEN }}
           type: plugin
@@ -136,7 +139,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
+      - uses: Automattic/action-gandalf@trunk
         with:
           token: ${{ secrets.GANDALF_API_TOKEN }}
           type: plugin
@@ -151,7 +154,7 @@ If your workflow already builds an installable plugin or theme ZIP, pass its pat
 with `runtime-zip`. Build it from the same checkout being reviewed:
 
 ```yaml
-- uses: Automattic/action-gandalf@abb1efcaf444687471337a60e1f7ee88dc0bdb12
+- uses: Automattic/action-gandalf@trunk
   with:
     token: ${{ secrets.GANDALF_API_TOKEN }}
     type: plugin
