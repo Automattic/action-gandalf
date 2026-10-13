@@ -1,103 +1,148 @@
 # Gandalf action
 
-Submit changes to a WordPress plugin or theme for an asynchronous Gandalf scan.
-The action packages committed Git source, receives a scan ID and exits. Gandalf
-delivers the result to Mission Control, which owns presentation and notifications.
+Review changes to a WordPress plugin or theme with Gandalf. The action packages
+changed source files, submits them and finishes. Gandalf performs the scan and any
+runtime investigation, then sends results to Mission Control for presentation and
+notifications.
 
-This implementation needs the matching Gandalf GitHub intake deployed and its MC
-callback configured. A real hosted/SecEx run is also required before rollout.
+## Single plugin or theme
 
-## Usage
-
-Check out the revision to review, then call this action. Replace `ACTION_COMMIT`
-with the reviewed full commit SHA after publication. On GHES, mirror this repository
-to `github.a8c.com/Automattic/action-gandalf`; `uses` resolves against that host.
+For a plugin at the repository root, add this workflow to
+`.github/workflows/gandalf.yml`:
 
 ```yaml
+name: Gandalf
+on: [pull_request]
+
 permissions:
   contents: read
 
-steps:
-  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-    with:
-      fetch-depth: 0
-      persist-credentials: false
-  - uses: Automattic/action-gandalf@ACTION_COMMIT
-    id: gandalf
-    with:
-      token: ${{ secrets.GANDALF_API_TOKEN }}
-      type: plugin
-      product-path: plugins/example
-      additional-source-paths: |
-        packages/shared
+jobs:
+  scan:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: Automattic/action-gandalf@6a995b2815ed421bdef1604de536858a31fa09ef
+        with:
+          token: ${{ secrets.GANDALF_API_TOKEN }}
+          type: plugin
 ```
 
-Use `type: theme` for a theme. `product-path` defaults to `.` for a single-product
-repository. Invoke once per product in a monorepo. Shared paths are optional,
-literal repository-relative paths, not globs. Every changed regular file in scope
-is packaged; Gandalf retains its normal review eligibility and coverage reporting.
+For a theme, change `type: plugin` to `type: theme`. The action compares the
+checked-out commit with the PR's base commit. No build is needed for source review.
+The job condition skips fork PRs, which this action does not support.
 
-On a PR the comparison base defaults to the PR base SHA. Elsewhere set `base-sha`
-to a full commit SHA. The review target is always `git rev-parse HEAD`, which can be
-GitHub's PR merge commit. Both that SHA and PR head identity are retained. Full
-history checkout makes the baseline available without another authenticated read;
-with a shallow checkout, the action fetches the exact base if absent using the
-caller's existing Git authentication. The action does not create checkout tokens.
+## Monorepo
 
-For runtime investigation, build an installable ZIP in the caller's workflow from
-that same checkout, then add `runtime-zip: dist/example.zip`. Build commands and
-artifact layout are product-owned; no baseline build is needed. Omit the input for
-source-only review. Gandalf records runtime failure separately and preserves static
-findings. The supplied build identity is trusted caller metadata, not attestation.
+Set `product-path` to the plugin or theme directory. Invoke the action once per
+product; a matrix can scan several products independently:
 
-## Inputs and outputs
+```yaml
+name: Gandalf
+on: [pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        product:
+          - plugins/my-plugin
+          - plugins/another-plugin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: Automattic/action-gandalf@6a995b2815ed421bdef1604de536858a31fa09ef
+        with:
+          token: ${{ secrets.GANDALF_API_TOKEN }}
+          type: plugin
+          product-path: ${{ matrix.product }}
+          additional-source-paths: |
+            packages/shared
+```
+
+`additional-source-paths` is optional: include shared source the product depends
+on, or omit it. Paths are literal repository-relative paths, not globs. A product
+with no changes in its configured paths is skipped.
+
+## Optional runtime investigation
+
+If your workflow already builds an installable plugin or theme ZIP, pass its path
+with `runtime-zip`. Build it from the same checkout being reviewed:
+
+```yaml
+- uses: Automattic/action-gandalf@6a995b2815ed421bdef1604de536858a31fa09ef
+  with:
+    token: ${{ secrets.GANDALF_API_TOKEN }}
+    type: plugin
+    runtime-zip: dist/my-plugin.zip
+```
+
+Gandalf uses that package for runtime investigation in its own environment. A ZIP
+of the base revision is not needed. Without a package, Gandalf performs source
+review only. A runtime failure preserves the source-review findings.
+
+## Inputs
 
 | Input | Required | Meaning |
 | --- | --- | --- |
-| `token` | yes | Dedicated org `GANDALF_API_TOKEN` |
+| `token` | yes | Gandalf API token |
 | `type` | yes | `plugin` or `theme` |
-| `product-path` | no | Product path, default `.` |
+| `product-path` | no | Product directory; defaults to `.` |
 | `additional-source-paths` | no | Newline-separated shared source paths |
-| `base-sha` | outside PRs | Full baseline commit SHA |
-| `runtime-zip` | no | Installable package built from the actual checkout |
+| `base-sha` | outside PRs | Full commit SHA to compare against |
+| `runtime-zip` | no | Installable ZIP built from the reviewed checkout |
 
-`status` is `accepted` or `skipped`; `scan-id` and Unix-second `accepted-at` are empty
-when no scoped changes exist. Acceptance is not a verdict or completed scan.
-The action does not wait for results or post a GitHub comment.
+For events other than pull requests, set `base-sha` explicitly. The target is
+always the actual checked-out commit, including GitHub's merge commit when that
+is what the checkout step selected. The examples fetch full history so the base
+is available locally. With a shallow checkout, fetching a missing base requires
+existing Git authentication on the runner.
 
-## Payload and credentials
+## Outputs
 
-The action uploads full before/after bytes of changed regular files, with a versioned
-Git manifest. Unchanged files never enter the ZIP. Additions, deletions, renames,
-permission changes and type changes remain explicit. Symlinks and gitlinks are
-metadata only. Source ZIPs above 20 MiB compressed fail; no silent truncation or
-alternative representation is used. Source plus optional runtime ZIP must fit a
-512 MiB request; expanded archives are limited to 1 GiB each.
+| Output | Meaning |
+| --- | --- |
+| `status` | `accepted` or `skipped` |
+| `scan-id` | ID of the accepted scan; empty when skipped |
+| `accepted-at` | Acceptance time in Unix seconds; empty when skipped |
 
-`GANDALF_API_TOKEN` is the only scanning secret required on callers. Set it as an
-organization secret for selected trusted repositories in github.com/Automattic,
-github.com/woocommerce and github.a8c.com/Automattic. A workflow with this secret can
-read it; this design is not non-exfiltratable. Fork PRs and `pull_request_target`
-are rejected in v1. Do not introduce a privileged workflow that executes untrusted
-PR code before passing it secrets.
+Acceptance means the scan was queued. The action finishes without waiting for
+results. Mission Control handles results and notifications.
 
-No OpenRouter key, private CLI read token or outgoing MC token belongs in this
-action. The Gandalf endpoint is fixed; the server owns the callback URL. Requests
-do not follow redirects. Transient failures retry at most three times using the
-same invocation UUID and source files. A workflow rerun creates a new invocation.
+## Supported usage and limits
 
-The runner needs Linux, Git, a GitHub Actions runner supporting Node 24 actions,
-and HTTPS egress to `gandalf.wordpress.org`. No npm install is needed to use the
-action: its bundled `dist/index.js` is committed with source. Confirm mirrored
-checkout/setup action pins exist on GHES before enabling its workflow.
+Use a Linux runner with Git and support for Node 24 actions. The runner needs
+HTTPS access to `gandalf.wordpress.org`; the action includes its JavaScript bundle
+and needs no npm install.
+
+Supported repositories are in github.com/Automattic, github.com/woocommerce and
+github.a8c.com/Automattic. For GitHub Enterprise Server, mirror this action to that
+host and use its mirrored checkout action. Fork PRs and `pull_request_target`
+are unsupported.
+
+The source ZIP contains complete before/after versions of changed regular files.
+Unchanged files are excluded; deletions, renames and permission changes remain
+explicit. Source ZIPs must fit within 20 MiB compressed. The entire request,
+including an optional runtime ZIP, must fit within 512 MiB; each expanded archive
+is limited to 1 GiB. Oversized submissions fail without silently discarding files.
 
 ## Development
 
-Use Node 24+, `npm ci`, then `npm run verify`. Verification type-checks, rebuilds the
-distributed bundle and runs real Git/ZIP and retry tests. Include the regenerated
-`dist/index.js` and `dist/licenses.txt` in changes. `src/github-scan-contract.ts` is an exact vendored copy
-of Gandalf's `contracts/src/github-scan.ts`; synchronize it and the shared fixture
-deliberately when the wire contract changes.
+Use Node 24+, `npm ci`, then `npm run verify`. Verification type-checks, rebuilds
+the distributed bundle and runs Git/ZIP and submission tests. Include regenerated
+`dist/index.js` and `dist/licenses.txt` in changes.
 
-See [the boundary record](docs/boundary.md) and the matching Gandalf
-`server/docs/github-scans.md` for the HTTP and MC callback contract.
+`src/github-scan-contract.ts` is a vendored copy of Gandalf's public wire contract;
+synchronize it and the shared fixture deliberately when the contract changes.
+See [the boundary record](docs/boundary.md) for implementation details.
