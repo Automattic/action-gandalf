@@ -1,99 +1,57 @@
-# Gandalf action boundary
+# Asynchronous GitHub boundary
 
-## Boundary symptom
+The action owns a native Git comparison, changed-file packaging and authenticated
+submission. The caller owns checkout and builds. Gandalf's server owns intake,
+durable queueing and callback delivery; its CLI owns AI review and investigation.
+Mission Control owns storage/presentation and notifications.
 
-The existing platform-workflows hello-world pilot proves target checkout and
-per-product jobs, but does not prove Gandalf installation, AI authentication,
-CTRF handling, or availability of SecEx in this new repository.
+The earlier local-CLI/SecEx bootstrap is superseded. No private scanner clone,
+runtime installation or model-provider credential is needed on the runner.
 
-## Native shape
+## Representation
 
-A composite action installs a pinned CLI and runs a subprocess on a directory.
-The workflow selects the runner, checks out products, and uploads reports.
-Gandalf owns scan semantics, coverage, model routing, and CTRF production.
+Use `git diff --raw -z --no-abbrev --find-renames=50%` with literal pathspecs and
+`git cat-file blob` to capture exact committed bytes. Do not read source from the
+worktree or follow Git symlinks. Keep actual checkout identity distinct from PR
+head and base. One UTF-8 ZIP manifest carries complete changed regular file versions
+and explicit link/gitlink metadata. Empty before/after sides are valid.
 
-## Capability policy
+Source has one fixed 20 MiB compressed bound. A separate caller-built runtime ZIP
+is optional. Native ZIP/multipart streams bound local memory; every receiving
+boundary validates content hashes, exact membership and archive limits.
 
-Product files are scan inputs. Their install scripts and application code are
-never run by the integration. Source-read credentials belong only to checkout;
-the OpenRouter key belongs only to scanning. Source, caches, configuration, and
-reports stay outside the product directory. Secrets are not artifacts.
+## Authorization and delivery
 
-## Current abstraction
+Trusted repositories receive an org bearer token. Host/org metadata is an assertion
+by that authorized caller; this is not OIDC or build attestation. The production
+endpoint is fixed and redirects are rejected. MC callback authorization is a
+separate server-owned credential that is never sent to the action.
 
-There is no action to patch. Avoid a server, proxy, container registry, or a
-second report format. The standalone action does not depend on platform-workflows.
+Generate one UUID per invocation and reuse it across bounded network/429/5xx retries.
+Gandalf returns 202 only after durable publish and queue insertion. Reuse with a
+different payload returns 409. An accepted scan produces one frozen terminal
+callback, with exact CTRF bytes plus digest for completed scans. MC deduplicates
+delivery by scan ID. An action rerun is intentionally a new scan.
 
-## Plane separation
+## Evidence and rollout
 
-The caller owns inventory, repository authentication, and execution placement.
-The action owns installation and subprocess handling. Gandalf owns analysis.
-The caller retains the original evidence as a private Actions artifact.
+The disposable Git/ZIP proof established exact edit/add/delete/rename/mode records,
+unusual filenames and metadata-only links. The original package reviewer omitted
+deletions and mode-only changes, so Gandalf now uses an explicit GitHub ruleset.
+Tests exercise real Git repositories, SHA-1/SHA-256 identities, unchanged/worktree
+exclusion, compressed oversize and HTTP retry identity. Server/CLI tests share
+`github-changes.json`, validate deletion review, archive rejection, durable restart,
+full callback retention, runtime input separation and runtime-failure preservation.
 
-## Standard/native option
+The experiments were promoted into these narrow contracts and tests; disposable
+scripts are not shipped. Exact input/output and branch assertions make stepping
+through Git or the ZIP library unnecessary for these deterministic cases.
 
-Use pinned first-party checkout and runtime setup actions mirrored in the local
-`github.a8c.com/actions` organization, native GitHub secret
-access controls, the CLI's `--json` surface, and the GHES-supported artifact
-uploader. Keep required full-SHA pinning enabled.
+Before release: deploy matching Gandalf server/worker; configure MC URL/token with
+Systems; provision the incoming org token; publish a reviewed action commit and
+mirror it to GHES. Run one trusted plugin and theme through actual hosted/SecEx
+runners and confirm MC acknowledgement. Local tests do not prove ingress limits,
+runner egress, GitHub token policy, model quality or production runtime capacity.
 
-## Small patch option
-
-Copying the platform executor would couple this integration to its inventory,
-PHP helpers, and audit state. It does not address private CLI authentication or
-the subprocess result contract. Do not copy that executor.
-
-## Decision
-
-Use a small composite action and direct subprocess contract. Exit 0/1 means the
-scan completed; 2/3 or abnormal termination means execution failed. Validate
-CTRF using its reference parser, preserve bytes, and never infer complete
-coverage from zero findings. Keep OpenRouter authentication as an org secret;
-runner exposure is the explicitly accepted v1 model.
-
-## Proof
-
-Question: can this repository provision SecEx, fetch the private pinned CLI,
-build and warm prompt-security, authenticate a real model request, and retain
-the exact report?
-
-Facts: source revision `7e61c567db67d82e3c8cf29773fc76516b1deefc`
-requires Node >=24.14.0, has local `../contracts` dependencies, builds the pinned
-Linux x64 YARA tool, and compiles Enry with Go. `scan --json` emits CTRF and
-current exit codes are 0/1/2/3. The CLI's `.nvmrc` is stale (Node 22); package
-engines and ADR 039 govern the runtime. This new repository currently requires
-SHA pins and initially permits local actions only.
-
-Verified local mirrors: checkout, setup-node, setup-go, and upload-artifact.
-All four pinned commits exist on GHES. The Node setup pin is the mirrored
-v7.0.0 release (`820762786026740c76f36085b0efc47a31fe5020`); the initially
-chosen upstream main commit was absent from the mirror. The organization
-requires `local_only`; no policy relaxation is needed or applied. Third-party
-actions are mirrored separately under `third-party-actions`, but this pilot
-does not need them.
-
-Unproven: SecEx provisioning here, runtime action execution,
-download egress, cold Go build time, private read-token access, OpenRouter
-authentication, and GHES artifact upload.
-
-Start with a disposable manual runner/runtime/artifact proof, then add private
-source build and scans of Page Optimize and Blank Canvas 3. Record versions,
-revisions, commands, timing, output, and statuses. Page Optimize must show a
-completed provider request; Blank Canvas 3 has no PHP/JS and only proves its
-applicable coverage and theme checkout.
-
-Step debugging of GitHub's scheduler is unavailable; job/step records and real
-artifacts directly prove that boundary. Inspect the compiled CLI with Node's
-inspector if a scan or output decision differs from its documented contract.
-
-Promote only after the real boundary is understood and focused subprocess
-tests pass. Delete the disposable workflow when the permanent pilot succeeds.
-Expected external failures fail visibly; do not add alternate authentication,
-runtime versions, generic retry layers, or report reconstruction.
-
-Cross-boundary risks: exit/status drift is locked by fixtures for 0/1/2/3 and
-abnormal termination; CTRF shape is validated with the reference parser;
-credential separation is checked at the subprocess boundary. Coverage and
-model-call evidence use Gandalf's emitted fields, never finding counts as a
-proxy. AIM, scheduled scans, GitHub.com publication, and additional scanners
-are deferred.
+AIM, fleet scheduling, general-code targets, fork handoff, late artifacts and
+fallback payload representations remain out of scope.

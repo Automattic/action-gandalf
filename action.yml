@@ -1,0 +1,28 @@
+name: Gandalf
+description: Submit changed WordPress plugin or theme source for an asynchronous Gandalf scan.
+inputs:
+  token:
+    description: Dedicated organization GANDALF_API_TOKEN secret.
+    required: true
+  type:
+    description: WordPress product type, plugin or theme.
+    required: true
+  product-path:
+    description: Literal repository-relative product directory.
+    default: '.'
+  additional-source-paths:
+    description: Optional newline-separated literal repository-relative shared source paths.
+  base-sha:
+    description: Exact comparison base commit. Defaults to the PR base SHA; required for other events.
+  runtime-zip:
+    description: Optional installable ZIP built from the actual checked-out commit.
+outputs:
+  scan-id:
+    description: Accepted scan ID; empty when no scoped changes exist.
+  accepted-at:
+    description: Acceptance time as Unix seconds; empty when skipped.
+  status:
+    description: accepted or skipped.
+runs:
+  using: node24
+  main: dist/index.js

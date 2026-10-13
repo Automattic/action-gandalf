@@ -1,0 +1,108 @@
+{
+  "manifest": {
+    "schema_version": "gandalf-github-changes-v1",
+    "context": {
+      "server_url": "https://github.com",
+      "repository": "Automattic/gandalf-fixture",
+      "repository_id": "123",
+      "product_path": "plugin",
+      "additional_source_paths": [],
+      "type": "plugin",
+      "base_sha": "b4056dbf84b3b72d28f32398a68d3d3097648424",
+      "checkout_sha": "9a82ce5cc355c9e05f487da82756b2aceabdd9b0",
+      "run_id": "1",
+      "run_attempt": 1
+    },
+    "changes": [
+      {
+        "status": "A",
+        "after": {
+          "path": "plugin/add space\nline.php",
+          "mode": "100644",
+          "oid": "4a259005ba394cfba009ca57b87d4a16f5b8a3b3",
+          "sha256": "d03aa0f0774e3023f90d259f443313f3f69190cdc43254a73f160575522a1df6",
+          "bytes": 23
+        }
+      },
+      {
+        "status": "D",
+        "before": {
+          "path": "plugin/delete.php",
+          "mode": "100644",
+          "oid": "345403d46fc8af9085b18b93e6083c50e99ad217",
+          "sha256": "15227f7903c50aa74b899563b11aa234413562bdb6987e8153555da68ea6d8c7",
+          "bytes": 21
+        }
+      },
+      {
+        "status": "M",
+        "before": {
+          "path": "plugin/edit.php",
+          "mode": "100644",
+          "oid": "641e604bf86b663a198132b56eca4038330b9785",
+          "sha256": "34a0aa0f6633d71079f8ba75239361c3a6956ab2f1a1e2baf802d77455147b83",
+          "bytes": 43
+        },
+        "after": {
+          "path": "plugin/edit.php",
+          "mode": "100644",
+          "oid": "3c06aa7b66f1a00782bfa0c3d004da0b83a92b40",
+          "sha256": "9f02e654a7e9d38ddceabcbb0cf06f0d865dd1d35139f4b8a85b5e9c33bcbb87",
+          "bytes": 14
+        }
+      },
+      {
+        "status": "A",
+        "after": {
+          "path": "plugin/link.php",
+          "mode": "120000",
+          "oid": "3594e94c04db171e2767224db355f514b13715c5"
+        }
+      },
+      {
+        "status": "M",
+        "before": {
+          "path": "plugin/mode.php",
+          "mode": "100644",
+          "oid": "ccba278d4b28fd3e6f41208911644df561e9fc49",
+          "sha256": "fcfb8d74c2a6e6a21fd1e89ffd7ad14877f42951825653abbacbd5e8025e1327",
+          "bytes": 23
+        },
+        "after": {
+          "path": "plugin/mode.php",
+          "mode": "100755",
+          "oid": "ccba278d4b28fd3e6f41208911644df561e9fc49",
+          "sha256": "fcfb8d74c2a6e6a21fd1e89ffd7ad14877f42951825653abbacbd5e8025e1327",
+          "bytes": 23
+        }
+      },
+      {
+        "status": "R",
+        "before": {
+          "path": "plugin/rename.php",
+          "mode": "100644",
+          "oid": "183a630b50208cd0b31072165a80f1194a97d64a",
+          "sha256": "e2b46ea1c758d1436eb88ff2a94f65e7007ddf22c88a8d277b91dc36a3680d64",
+          "bytes": 26
+        },
+        "after": {
+          "path": "plugin/renamed.php",
+          "mode": "100644",
+          "oid": "183a630b50208cd0b31072165a80f1194a97d64a",
+          "sha256": "e2b46ea1c758d1436eb88ff2a94f65e7007ddf22c88a8d277b91dc36a3680d64",
+          "bytes": 26
+        }
+      }
+    ]
+  },
+  "files": {
+    "after/plugin/add space\nline.php": "<?php echo $_GET[\"x\"];\n",
+    "before/plugin/delete.php": "<?php deny_access();\n",
+    "before/plugin/edit.php": "<?php check_admin_referer(\"save\");\nsave();\n",
+    "after/plugin/edit.php": "<?php save();\n",
+    "before/plugin/mode.php": "<?php mode_function();\n",
+    "after/plugin/mode.php": "<?php mode_function();\n",
+    "before/plugin/rename.php": "<?php renamed_function();\n",
+    "after/plugin/renamed.php": "<?php renamed_function();\n"
+  }
+}
